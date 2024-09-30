@@ -1,46 +1,46 @@
 package fastapi
 
 import (
-	"github.com/gin-gonic/gin"
+	"sync"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
-func TestInvalidHandler1(t *testing.T) {
-	defer func() { recover() }()
-	NewRouter().AddCall("x", func(in struct{}) (out struct{}) { return })
-	t.Errorf("Did not panic")
+func runTest(t *testing.T, wg *sync.WaitGroup, testFunc func()) {
+	defer wg.Done()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("Did not panic")
+		}
+	}()
+	testFunc()
 }
 
-func TestInvalidHandler2(t *testing.T) {
-	defer func() { recover() }()
-	NewRouter().AddCall("x", func(ctx *gin.Context, in struct{}) (out struct{}) { return })
-	t.Errorf("Did not panic")
+func TestHandlersConcurrently(t *testing.T) {
+	var wg sync.WaitGroup
+
+	tests := []func(){
+		func() { NewRouter().AddCall("x", func(_ struct{}) struct{} { return struct{}{} }) },
+		func() { NewRouter().AddCall("x", func(_ *gin.Context, _ struct{}) struct{} { return struct{}{} }) },
+		func() { NewRouter().AddCall("x", func(_ struct{}) (struct{}, error) { return struct{}{}, nil }) },
+		func() {
+			NewRouter().AddCall("x", func(_ struct{}, _ struct{}) (struct{}, error) { return struct{}{}, nil })
+		},
+		func() {
+			NewRouter().AddCall("x", func(_ *gin.Context, _ string) (struct{}, error) { return struct{}{}, nil })
+		},
+		func() { NewRouter().AddCall("x", func(_ *gin.Context, _ struct{}) (string, error) { return "", nil }) },
+	}
+
+	for _, test := range tests {
+		wg.Add(1)
+		go runTest(t, &wg, test)
+	}
+
+	wg.Wait()
 }
 
-func TestInvalidHandler3(t *testing.T) {
-	defer func() { recover() }()
-	NewRouter().AddCall("x", func(in struct{}) (out struct{}, err error) { return })
-	t.Errorf("Did not panic")
-}
-
-func TestInvalidHandler4(t *testing.T) {
-	defer func() { recover() }()
-	NewRouter().AddCall("x", func(ctx struct{}, in struct{}) (out struct{}, err error) { return })
-	t.Errorf("Did not panic")
-}
-
-func TestInvalidHandler5(t *testing.T) {
-	defer func() { recover() }()
-	NewRouter().AddCall("x", func(ctx *gin.Context, in string) (out struct{}, err error) { return })
-	t.Errorf("Did not panic")
-}
-
-func TestInvalidHandler6(t *testing.T) {
-	defer func() { recover() }()
-	NewRouter().AddCall("x", func(ctx *gin.Context, in struct{}) (out string, err error) { return })
-	t.Errorf("Did not panic")
-}
-
-func TestCorrectHandler(t *testing.T) {
-	NewRouter().AddCall("x", func(ctx *gin.Context, in struct{}) (out struct{}, err error) { return })
+func TestCorrectHandler(_ *testing.T) {
+	NewRouter().AddCall("x", func(_ *gin.Context, _ struct{}) (struct{}, error) { return struct{}{}, nil })
 }
