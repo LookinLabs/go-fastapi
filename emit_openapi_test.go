@@ -1,8 +1,9 @@
 package fastapi
 
 import (
-	"github.com/gin-gonic/gin"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 type InnerStruct struct {
@@ -27,22 +28,22 @@ type Out struct {
 	Output string `json:"output"`
 }
 
-func RequestHandler(ctx *gin.Context, in In) (out Out, err error) {
-	return
+func RequestHandler(_ *gin.Context, _ In) (Out, error) {
+	return Out{}, nil
 }
 
-func RequestHandlerTwo(ctx *gin.Context, in In2) (out Out, err error) {
-	return
+func RequestHandlerTwo(_ *gin.Context, _ In2) (Out, error) {
+	return Out{}, nil
 }
 
 func TestOpenAPIDefinition(t *testing.T) {
-	myRouter := NewRouter()
-	myRouter.AddCall("/ping", RequestHandler)
-	myRouter.AddCall("/pong", RequestHandlerTwo)
-	sw := myRouter.EmitOpenAPIDefinition()
+	openAPIRouter := NewRouter()
+	openAPIRouter.AddCall("/ping", RequestHandler)
+	openAPIRouter.AddCall("/pong", RequestHandlerTwo)
+	sw := openAPIRouter.EmitOpenAPIDefinition()
 
 	if len(sw.Paths.Paths) != 2 {
-		t.Fatal("Wrong number of pathes")
+		t.Fatal("Wrong number of paths")
 	}
 
 	if len(sw.Definitions) != 4 {

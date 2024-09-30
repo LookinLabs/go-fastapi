@@ -50,7 +50,9 @@ func main() {
 //     {"response":{"original_input":{"phrase":"hello"}}}
 ```
 
-To generate OpenAPI/Swagger schema:
+## OpenAPI/Swagger
+
+**To generate OpenAPI/Swagger schema:**
 
 ```go
 myRouter := fastapi.NewRouter()
@@ -61,5 +63,34 @@ swagger.Info.Title = "My awesome API"
 jsonBytes, _ := json.MarshalIndent(swagger, "", "    ")
 fmt.Println(string(jsonBytes))
 ```
+
+**To serve OpenAPI/Swagger schema:**
+
+```go
+	r := gin.Default()
+
+	// Use Router for handling API requests and generating OpenAPI definition
+	myRouter := fastapi.NewRouter()
+	myRouter.AddCall("/echo", EchoHandler)
+
+	r.POST("/api/*path", myRouter.GinHandler) // must have *path parameter
+
+	swagger := myRouter.EmitOpenAPIDefinition()
+	swagger.Info.Title = "My awesome API"
+	jsonBytes, _ := json.MarshalIndent(swagger, "", "    ")
+	fmt.Println(string(jsonBytes))
+
+	// Serve Swagger JSON
+	r.GET("/swagger.json", func(c *gin.Context) {
+		c.Data(http.StatusOK, "application/json", jsonBytes)
+	})
+
+	// Serve Swagger UI
+	r.Static("/swagger-ui", "./swaggerui")
+
+	r.Run()
+```
+
+You can check [the example](examples/) for more details about serving Swagger.
 
 <img src="https://user-images.githubusercontent.com/677093/146807480-be53b3fb-6de8-451f-8373-e8d6da54a032.png" width="400px" height="auto">

@@ -8,7 +8,7 @@ import (
 	openapi "github.com/go-openapi/spec"
 )
 
-func (r *Router) EmitOpenAPIDefinition() openapi.Swagger {
+func (router *Router) EmitOpenAPIDefinition() openapi.Swagger {
 	sw := openapi.Swagger{}
 	sw.Swagger = "2.0"
 	sw.Info = &openapi.Info{}
@@ -20,10 +20,11 @@ func (r *Router) EmitOpenAPIDefinition() openapi.Swagger {
 	sw.Definitions = make(map[string]openapi.Schema)
 
 	definitionTypes := make(map[string]reflect.Type)
-	for path, handlerFuncPtr := range r.routesMap {
+	for path, handlerFuncPtr := range router.routes {
 		handlerType := reflect.TypeOf(handlerFuncPtr)
 		inputType := handlerType.In(1)
 		definitionTypes[inputType.Name()] = inputType
+
 		for i := 0; i < inputType.NumField(); i++ {
 			field := inputType.Field(i)
 			if field.Type.Kind() == reflect.Struct {
