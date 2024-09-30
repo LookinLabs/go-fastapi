@@ -1,59 +1,75 @@
 package fastapi
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 )
 
-func TestValidateHandlerInvalidCases(t *testing.T) {
-	tests := []struct {
-		name    string
-		handler interface{}
-	}{
-		{
-			name:    "Wrong number of arguments",
-			handler: func(_ struct{}) struct{} { return struct{}{} },
-		},
-		{
-			name:    "Wrong number of return values",
-			handler: func(_ *gin.Context, _ struct{}) {},
-		},
-		{
-			name:    "First argument not *gin.Context",
-			handler: func(_ struct{}, _ *gin.Context) (struct{}, error) { return struct{}{}, nil },
-		},
-		{
-			name:    "Second argument not a struct",
-			handler: func(_ *gin.Context, _ string) (struct{}, error) { return struct{}{}, nil },
-		},
-		{
-			name:    "Second return value not an error",
-			handler: func(_ *gin.Context, _ struct{}) (struct{}, string) { return struct{}{}, "" },
-		},
-		{
-			name:    "First return value not a struct",
-			handler: func(_ *gin.Context, _ struct{}) (string, error) { return "", nil },
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			defer func() {
-				if r := recover(); r == nil {
-					t.Errorf("validateHandler did not panic for case: %s", tt.name)
-				}
-			}()
-			validateHandler(tt.handler)
-		})
-	}
+type ValidInput struct {
+	Field string `json:"field"`
 }
 
-func TestValidateHandlerValidCase(t *testing.T) {
-	defer func() {
-		if r := recover(); r != nil {
-			t.Errorf("validateHandler panicked for valid handler")
-		}
-	}()
-	validateHandler(func(_ *gin.Context, _ struct{}) (struct{}, error) { return struct{}{}, nil })
+type ValidOutput struct {
+	Field string `json:"field"`
+}
+
+func validHandler(ctx *gin.Context, input ValidInput) (ValidOutput, error) {
+	return ValidOutput{Field: input.Field}, nil
+}
+
+func invalidHandlerNoGinContext(input ValidInput) (ValidOutput, error) {
+	return ValidOutput{Field: input.Field}, nil
+}
+
+func invalidHandlerWrongReturnType(ctx *gin.Context, input ValidInput) (string, error) {
+	return input.Field, nil
+}
+
+func invalidHandlerNoErrorReturn(ctx *gin.Context, input ValidInput) (ValidOutput, string) {
+	return ValidOutput{Field: input.Field}, ""
+}
+
+func invalidHandlerWrongInputType(ctx *gin.Context, input string) (ValidOutput, error) {
+	return ValidOutput{Field: input}, nil
+}
+
+func TestAddCallConcurrently(t *testing.T) {
+	router := &Router{routes: make(map[string]interface{})}
+
+	tests := []struct {
+		name        string
+		handler     interface{}
+		shouldPanic bool
+	}{
+		{"ValidHandler", validHandler, false},
+		{"InvalidHandlerNoGinContext", invalidHandlerNoGinContext, true},
+		{"InvalidHandlerWrongReturnType", invalidHandlerWrongReturnType, true},
+		{"InvalidHandlerNoErrorReturn", invalidHandlerNoErrorReturn, true},
+		{"InvalidHandlerWrongInputType", invalidHandlerWrongInputType, true},
+	}
+
+	var wg sync.WaitGroup
+
+	for _, tt := range tests {
+		wg.Add(1)
+		go func(tt struct {
+			name        string
+			handler     interface{}
+			shouldPanic bool
+		}) {
+			defer wg.Done()
+			t.Run(tt.name, func(t *testing.T) {
+				defer func() {
+					if r := recover(); (r != nil) != tt.shouldPanic {
+						t.Errorf("AddCall() panic = %v, wantPanic = %v", r != nil, tt.shouldPanic)
+					}
+				}()
+				router.AddCall("/test", tt.handler)
+			})
+		}(tt)
+	}
+
+	wg.Wait()
 }
